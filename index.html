@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>Anki Image Formatter</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #f0f0f4;
+    --surface: #ffffff;
+    --surface2: #f5f5f8;
+    --border: #d8d8e0;
+    --accent: #6255d4;
+    --accent2: #7c6af7;
+    --accent-dim: rgba(98,85,212,0.08);
+    --text: #1a1a2e;
+    --text-dim: #5a5a72;
+    --text-dimmer: #9a9ab0;
+    --success: #16a34a;
+    --error: #dc2626;
+    --mono: 'DM Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 48px;
+    gap: 20px;
+  }
+
+  /* ── Header ── */
+  header {
+    width: 100%;
+    max-width: 680px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: var(--accent2);
+  }
+  header span {
+    font-size: 12px;
+    color: var(--text-dimmer);
+    font-family: var(--mono);
+  }
+
+  /* ── Card ── */
+  .card {
+    width: 100%;
+    max-width: 680px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 10px 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dimmer);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  .card-body { padding: 16px; }
+
+  /* ── Paste area ── */
+  #paste-area {
+    width: 100%;
+    border: 1.5px dashed var(--border);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    padding: 12px 16px;
+    text-align: left;
+    position: relative;
+    outline: none;
+  }
+  #paste-area:hover, #paste-area:focus, #paste-area.drag-over {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+  }
+  #paste-area .icon {
+    font-size: 18px;
+    opacity: 0.4;
+    flex-shrink: 0;
+  }
+  #paste-area .texts { display: flex; flex-direction: column; gap: 2px; }
+  #paste-area .label {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.4;
+  }
+  #paste-area .sublabel {
+    font-size: 11px;
+    color: var(--text-dimmer);
+    font-family: var(--mono);
+  }
+  #paste-area .kbd {
+    display: inline-block;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent2);
+  }
+  #file-input { display: none; }
+
+  /* ── Settings grid ── */
+  .settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .setting-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .setting-group label {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--text-dimmer);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .input-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .input-row input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 7px 10px;
+    width: 100%;
+    min-width: 0;
+    outline: none;
+    transition: border-color 0.2s;
+    -moz-appearance: textfield;
+  }
+  .input-row input::-webkit-outer-spin-button,
+  .input-row input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .input-row input:focus { border-color: var(--accent); }
+  .input-row .sep {
+    color: var(--text-dimmer);
+    font-family: var(--mono);
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  /* ── Preview ── */
+  #preview-section { display: none; }
+  #preview-section.visible { display: block; }
+
+  #preview-wrapper {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: repeating-conic-gradient(#d8d8e0 0% 25%, #ebebf0 0% 50%) 0 0 / 16px 16px;
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+  }
+  #preview-wrapper:active { cursor: grabbing; }
+  #preview-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .preview-hint {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-dimmer);
+    font-family: var(--mono);
+    margin-top: 8px;
+  }
+
+  /* ── Buttons ── */
+  .btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    white-space: nowrap;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover:not(:disabled) { opacity: 0.88; }
+  .btn-secondary {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent2); }
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover:not(:disabled) { color: var(--text); border-color: var(--text-dim); }
+
+  /* ── Message ── */
+  #message {
+    font-size: 12px;
+    font-family: var(--mono);
+    min-height: 18px;
+    transition: opacity 0.3s;
+  }
+  #message.success { color: var(--success); }
+  #message.error   { color: var(--error); }
+  #message.hidden  { opacity: 0; }
+
+  /* ── Divider ── */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0;
+  }
+
+  @media (max-width: 480px) {
+    .settings-grid { grid-template-columns: 1fr; }
+    .btn { font-size: 12px; padding: 8px 11px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>anki-img</h1>
+  <span>// image formatter for flashcards</span>
+</header>
+
+<!-- INPUT -->
+<div class="card">
+  <div class="card-header">Input</div>
+  <div class="card-body" style="display:flex;flex-direction:column;gap:12px;">
+    <div id="paste-area" tabindex="0" role="button" aria-label="クリップボードから貼り付け、またはファイルを選択">
+      <div class="icon">⌨</div>
+      <div class="texts">
+        <div class="label"><span class="kbd">Ctrl+V</span> で貼り付け、またはタップしてファイル選択</div>
+        <div class="sublabel">PNG / JPG / WebP / GIF 対応</div>
+      </div>
+    </div>
+    <input type="file" id="file-input" accept="image/*">
+  </div>
+</div>
+
+<!-- PREVIEW -->
+<div class="card" id="preview-section">
+  <div class="card-header">Preview</div>
+  <div class="card-body" style="display:flex;flex-direction:column;gap:12px;">
+    <div id="preview-wrapper">
+      <canvas id="preview-canvas"></canvas>
+    </div>
+    <div class="preview-hint">ドラッグで位置を微調整できます</div>
+    <div class="divider"></div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-copy">📋 PNGとしてコピー</button>
+      <button class="btn btn-secondary" id="btn-save">💾 PNGとして保存</button>
+      <button class="btn btn-ghost" id="btn-reset-pos">↺ 位置をリセット</button>
+      <button class="btn btn-ghost" id="btn-reset-img">✕ 画像をリセット</button>
+    </div>
+    <div id="message" class="hidden"></div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div class="card">
+  <div class="card-header">Settings</div>
+  <div class="card-body">
+    <div class="settings-grid">
+      <div class="setting-group">
+        <label>比率 (W : H)</label>
+        <div class="input-row">
+          <input type="number" id="ratio-w" value="4" min="1" max="9999">
+          <span class="sep">:</span>
+          <input type="number" id="ratio-h" value="3" min="1" max="9999">
+        </div>
+      </div>
+      <div class="setting-group">
+        <label>解像度 (px)</label>
+        <div class="input-row">
+          <input type="number" id="res-w" value="1200" min="1" max="9999">
+          <span class="sep">×</span>
+          <input type="number" id="res-h" value="900" min="1" max="9999">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ── State ──
+  let trimmedBitmap = null;  // trimmed source image (ImageBitmap or HTMLImageElement)
+  let trimW = 0, trimH = 0;
+  let offsetX = 0, offsetY = 0; // crop offset in trimmed-image pixels
+  let targetRatioW = 4, targetRatioH = 3;
+  let outW = 1200, outH = 900;
+
+  // ── Elements ──
+  const pasteArea    = document.getElementById('paste-area');
+  const fileInput    = document.getElementById('file-input');
+  const previewSect  = document.getElementById('preview-section');
+  const previewWrap  = document.getElementById('preview-wrapper');
+  const previewCanvas= document.getElementById('preview-canvas');
+  const btnCopy      = document.getElementById('btn-copy');
+  const btnSave      = document.getElementById('btn-save');
+  const btnResetPos  = document.getElementById('btn-reset-pos');
+  const btnResetImg  = document.getElementById('btn-reset-img');
+  const msgEl        = document.getElementById('message');
+  const ratioW       = document.getElementById('ratio-w');
+  const ratioH       = document.getElementById('ratio-h');
+  const resW         = document.getElementById('res-w');
+  const resH         = document.getElementById('res-h');
+
+  const pCtx = previewCanvas.getContext('2d', { willReadFrequently: false });
+
+  // ── Message ──
+  let msgTimer = null;
+  function showMsg(text, type, duration = 3000) {
+    clearTimeout(msgTimer);
+    msgEl.textContent = text;
+    msgEl.className = type;
+    if (duration > 0) {
+      msgTimer = setTimeout(() => { msgEl.className = 'hidden'; }, duration);
+    }
+  }
+
+  // ── Trim whitespace/transparent border ──
+  function trimImage(img) {
+    const c = document.createElement('canvas');
+    c.width  = img.width  || img.naturalWidth;
+    c.height = img.height || img.naturalHeight;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0);
+    const { data, width, height } = ctx.getImageData(0, 0, c.width, c.height);
+
+    // Detect background color from corners (majority vote)
+    function px(x, y) {
+      const i = (y * width + x) * 4;
+      return [data[i], data[i+1], data[i+2], data[i+3]];
+    }
+    const corners = [px(0,0), px(width-1,0), px(0,height-1), px(width-1,height-1)];
+    // If any corner is transparent, use transparent trim
+    const useAlpha = corners.some(c => c[3] < 10);
+    let bgR=255, bgG=255, bgB=255;
+    if (!useAlpha) {
+      // Use corner average
+      bgR = Math.round(corners.reduce((s,c)=>s+c[0],0)/4);
+      bgG = Math.round(corners.reduce((s,c)=>s+c[1],0)/4);
+      bgB = Math.round(corners.reduce((s,c)=>s+c[2],0)/4);
+    }
+
+    const THRESH = 18;
+    function isBg(x, y) {
+      const [r,g,b,a] = px(x, y);
+      if (useAlpha) return a < 10;
+      if (a < 10) return true;
+      return Math.abs(r-bgR)<THRESH && Math.abs(g-bgG)<THRESH && Math.abs(b-bgB)<THRESH;
+    }
+
+    let top = 0, bottom = height-1, left = 0, right = width-1;
+
+    outer: for (let y=0; y<height; y++) {
+      for (let x=0; x<width; x++) { if (!isBg(x,y)) { top=y; break outer; } }
+    }
+    outer: for (let y=height-1; y>=top; y--) {
+      for (let x=0; x<width; x++) { if (!isBg(x,y)) { bottom=y; break outer; } }
+    }
+    outer: for (let x=0; x<width; x++) {
+      for (let y=top; y<=bottom; y++) { if (!isBg(x,y)) { left=x; break outer; } }
+    }
+    outer: for (let x=width-1; x>=left; x--) {
+      for (let y=top; y<=bottom; y++) { if (!isBg(x,y)) { right=x; break outer; } }
+    }
+
+    const tw = right - left + 1;
+    const th = bottom - top + 1;
+    if (tw <= 0 || th <= 0) return { canvas: c, x: 0, y: 0, w: width, h: height };
+    return { canvas: c, x: left, y: top, w: tw, h: th };
+  }
+
+  // ── Compute center offset ──
+  function computeCenterOffset() {
+    const ratio = targetRatioW / targetRatioH;
+    let cropW, cropH;
+    if (trimW / trimH > ratio) {
+      cropH = trimH;
+      cropW = Math.round(trimH * ratio);
+    } else {
+      cropW = trimW;
+      cropH = Math.round(trimW / ratio);
+    }
+    offsetX = Math.round((trimW - cropW) / 2);
+    offsetY = Math.round((trimH - cropH) / 2);
+  }
+
+  // ── Get crop rect (in trimmed-image coords) ──
+  function getCropRect() {
+    const ratio = targetRatioW / targetRatioH;
+    let cropW, cropH;
+    if (trimW / trimH > ratio) {
+      cropH = trimH;
+      cropW = Math.round(trimH * ratio);
+    } else {
+      cropW = trimW;
+      cropH = Math.round(trimW / ratio);
+    }
+    // Clamp
+    const maxX = trimW - cropW;
+    const maxY = trimH - cropH;
+    const ox = Math.max(0, Math.min(offsetX, maxX));
+    const oy = Math.max(0, Math.min(offsetY, maxY));
+    return { x: ox, y: oy, w: cropW, h: cropH };
+  }
+
+  // ── Render preview ──
+  function renderPreview() {
+    if (!trimmedBitmap) return;
+    const { x: sx, y: sy, w: sw, h: sh } = getCropRect();
+
+    // Size preview canvas to match aspect ratio
+    const ratio = targetRatioW / targetRatioH;
+    const maxW = previewWrap.clientWidth || 600;
+    const dispW = maxW;
+    const dispH = Math.round(maxW / ratio);
+    previewCanvas.width  = dispW;
+    previewCanvas.height = dispH;
+    previewWrap.style.height = dispH + 'px';
+
+    pCtx.clearRect(0, 0, dispW, dispH);
+    pCtx.drawImage(
+      trimmedBitmap.canvas,
+      trimmedBitmap.x + sx, trimmedBitmap.y + sy, sw, sh,
+      0, 0, dispW, dispH
+    );
+  }
+
+  // ── Render final output canvas ──
+  function renderOutput() {
+    const c = document.createElement('canvas');
+    c.width  = outW;
+    c.height = outH;
+    const ctx = c.getContext('2d');
+    const { x: sx, y: sy, w: sw, h: sh } = getCropRect();
+    ctx.drawImage(
+      trimmedBitmap.canvas,
+      trimmedBitmap.x + sx, trimmedBitmap.y + sy, sw, sh,
+      0, 0, outW, outH
+    );
+    return c;
+  }
+
+  // ── Load image from blob/file ──
+  async function loadImage(blob) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload  = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('画像の読み込みに失敗しました')); };
+      img.src = url;
+    });
+  }
+
+  async function processImage(blob) {
+    try {
+      showMsg('処理中...', '', 0);
+      if (!blob.type.startsWith('image/')) throw new Error('画像ファイルではありません');
+      const img = await loadImage(blob);
+      const trimResult = trimImage(img);
+      trimmedBitmap = trimResult;
+      trimW = trimResult.w;
+      trimH = trimResult.h;
+
+      readSettings();
+      computeCenterOffset();
+      renderPreview();
+
+      previewSect.classList.add('visible');
+      showMsg('✓ 読み込み完了', 'success');
+    } catch(e) {
+      showMsg('✗ ' + e.message, 'error', 5000);
+    }
+  }
+
+  function readSettings() {
+    const rw = parseInt(ratioW.value);
+    const rh = parseInt(ratioH.value);
+    const ow = parseInt(resW.value);
+    const oh = parseInt(resH.value);
+    if (!rw || !rh || rw<1 || rh<1) throw new Error('比率が不正です');
+    if (!ow || !oh || ow<1 || oh<1) throw new Error('解像度が不正です');
+    if (rw > 9999 || rh > 9999 || ow > 9999 || oh > 9999) throw new Error('値が大きすぎます');
+    targetRatioW = rw;
+    targetRatioH = rh;
+    outW = ow;
+    outH = oh;
+  }
+
+  // ── Settings change → re-render ──
+  [ratioW, ratioH, resW, resH].forEach(el => {
+    el.addEventListener('change', () => {
+      if (!trimmedBitmap) return;
+      try {
+        readSettings();
+        computeCenterOffset();
+        renderPreview();
+      } catch(e) {
+        showMsg('✗ ' + e.message, 'error');
+      }
+    });
+  });
+
+  // ── Paste ──
+  document.addEventListener('paste', async (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        await processImage(item.getAsFile());
+        return;
+      }
+    }
+    showMsg('✗ 画像が見つかりませんでした', 'error');
+  });
+
+  // ── Paste area click/keyboard ──
+  pasteArea.addEventListener('click', () => fileInput.click());
+  pasteArea.addEventListener('keydown', e => { if (e.key==='Enter'||e.key===' ') fileInput.click(); });
+
+  // ── Drag & drop on paste area ──
+  pasteArea.addEventListener('dragover', e => { e.preventDefault(); pasteArea.classList.add('drag-over'); });
+  pasteArea.addEventListener('dragleave', () => pasteArea.classList.remove('drag-over'));
+  pasteArea.addEventListener('drop', async e => {
+    e.preventDefault();
+    pasteArea.classList.remove('drag-over');
+    const file = e.dataTransfer?.files?.[0];
+    if (file && file.type.startsWith('image/')) await processImage(file);
+    else showMsg('✗ 画像ファイルではありません', 'error');
+  });
+
+  // ── File input ──
+  fileInput.addEventListener('change', async () => {
+    if (fileInput.files[0]) await processImage(fileInput.files[0]);
+    fileInput.value = '';
+  });
+
+  // ── Drag to adjust position ──
+  let dragging = false;
+  let dragStartX = 0, dragStartY = 0;
+  let dragOffsetX0 = 0, dragOffsetY0 = 0;
+
+  function getScale() {
+    // pixels per display-pixel
+    const { w: cropW, h: cropH } = getCropRect();
+    return cropW / previewCanvas.width;
+  }
+
+  function onDragStart(clientX, clientY) {
+    if (!trimmedBitmap) return;
+    dragging = true;
+    dragStartX = clientX;
+    dragStartY = clientY;
+    dragOffsetX0 = offsetX;
+    dragOffsetY0 = offsetY;
+  }
+
+  function onDragMove(clientX, clientY) {
+    if (!dragging) return;
+    const scale = getScale();
+    const dx = (clientX - dragStartX) * scale;
+    const dy = (clientY - dragStartY) * scale;
+    // Moving image right means offset decreases
+    offsetX = dragOffsetX0 - dx;
+    offsetY = dragOffsetY0 - dy;
+    renderPreview();
+  }
+
+  function onDragEnd() { dragging = false; }
+
+  previewWrap.addEventListener('mousedown',  e => { e.preventDefault(); onDragStart(e.clientX, e.clientY); });
+  window.addEventListener('mousemove', e => onDragMove(e.clientX, e.clientY));
+  window.addEventListener('mouseup',   onDragEnd);
+
+  previewWrap.addEventListener('touchstart', e => {
+    if (e.touches.length === 1) { e.preventDefault(); onDragStart(e.touches[0].clientX, e.touches[0].clientY); }
+  }, { passive: false });
+  window.addEventListener('touchmove', e => {
+    if (e.touches.length === 1) onDragMove(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: true });
+  window.addEventListener('touchend', onDragEnd);
+
+  // ── Reset position ──
+  btnResetPos.addEventListener('click', () => {
+    if (!trimmedBitmap) return;
+    computeCenterOffset();
+    renderPreview();
+    showMsg('✓ 位置をリセットしました', 'success');
+  });
+
+  // ── Reset image ──
+  btnResetImg.addEventListener('click', () => {
+    trimmedBitmap = null;
+    trimW = trimH = 0;
+    offsetX = offsetY = 0;
+    previewSect.classList.remove('visible');
+    msgEl.className = 'hidden';
+    pCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+  });
+
+  // ── Copy ──
+  btnCopy.addEventListener('click', async () => {
+    if (!trimmedBitmap) return;
+    try {
+      readSettings();
+      const out = renderOutput();
+      const blob = await new Promise(r => out.toBlob(r, 'image/png'));
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      showMsg('✓ クリップボードにコピーしました', 'success');
+    } catch(e) {
+      if (e.name === 'NotAllowedError') showMsg('✗ クリップボードへの書き込みが許可されていません', 'error', 6000);
+      else if (e.message) showMsg('✗ ' + e.message, 'error', 6000);
+      else showMsg('✗ コピーに失敗しました', 'error');
+    }
+  });
+
+  // ── Save ──
+  btnSave.addEventListener('click', () => {
+    if (!trimmedBitmap) return;
+    try {
+      readSettings();
+      const out = renderOutput();
+      const a = document.createElement('a');
+      a.href = out.toDataURL('image/png');
+      a.download = 'anki_' + Date.now() + '.png';
+      a.click();
+      showMsg('✓ 保存しました', 'success');
+    } catch(e) {
+      showMsg('✗ ' + (e.message || '保存に失敗しました'), 'error');
+    }
+  });
+
+  // ── Re-render on resize ──
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { if (trimmedBitmap) renderPreview(); }, 150);
+  });
+
+})();
+</script>
+</body>
+</html>
